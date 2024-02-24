@@ -6,6 +6,7 @@ use std::{
 use clap::Parser;
 use image::{io::Reader as ImageReader, DynamicImage, GenericImage, GenericImageView};
 use std::fs;
+use std::thread;
 
 mod grid;
 mod pack;
@@ -13,10 +14,12 @@ mod pack;
 const TARGET: &str = "new";
 const ALPHA: u32 = 128;
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 struct Args {
     #[clap(long, default_value = "false")]
     folders: bool,
+    #[clap(long, default_value = "1")]
+    threads: usize,
     image: PathBuf,
     tmpk: PathBuf,
 }
@@ -171,7 +174,7 @@ fn display_grid(grids: Vec<grid::Grid>, og: &DynamicImage, filename: &str) {
         .unwrap();
 }
 
-fn handle_single(args: Args) {
+fn handle_single(args: &Args) {
     println!("{}", args.image.file_name().unwrap().to_str().unwrap());
 
     let tmpk = fs::read(&args.tmpk).unwrap();
@@ -290,6 +293,8 @@ fn full_image_file(filename: &str) -> bool {
 }
 
 fn handle_folders(args: Args) {
+    let mut single_files = Vec::new();
+
     for entry_res in fs::read_dir(args.image).unwrap() {
         if let Ok(entry) = entry_res {
             if entry.file_type().unwrap().is_file()
@@ -303,14 +308,34 @@ fn handle_folders(args: Args) {
                 path.push(format!("S{}TMPK.BIN", &name_str[1..4]));
 
                 if path.exists() {
-                    handle_single(Args {
+                    single_files.push(Args {
                         image: entry.path(),
                         tmpk: path,
+                        threads: 1,
                         folders: false,
                     });
                 }
             }
         }
+    }
+
+    let mut children = Vec::new();
+
+    let mut groups = Vec::new();
+    for chunk in single_files.chunks(args.threads) {
+        groups.push(Vec::from(chunk));
+    }
+
+    for chunk in groups {
+        children.push(thread::spawn(move || {
+            for f in chunk {
+                handle_single(&f);
+            }
+        }))
+    }
+
+    for child in children {
+        let _ = child.join();
     }
 }
 
@@ -318,7 +343,7 @@ fn main() {
     let args = Args::parse();
 
     if !args.folders {
-        handle_single(args);
+        handle_single(&args);
     } else {
         handle_folders(args);
     }

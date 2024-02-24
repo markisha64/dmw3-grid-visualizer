@@ -228,6 +228,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
+name = "dmw3-grid-visualizer"
+version = "0.1.0"
+dependencies = [
+ "binread",
+ "binwrite",
+ "clap",
+ "image",
+]
+
+[[package]]
 name = "either"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -285,16 +295,6 @@ checksum = "80792593675e051cf94a4b111980da2ba60d4a83e43e0048c5693baab3977045"
 dependencies = [
  "color_quant",
  "weezl",
-]
-
-[[package]]
-name = "gridTest"
-version = "0.1.0"
-dependencies = [
- "binread",
- "binwrite",
- "clap",
- "image",
 ]
 
 [[package]]
