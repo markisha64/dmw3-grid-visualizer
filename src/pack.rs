@@ -8,7 +8,7 @@ pub struct Packed {
 }
 
 impl Packed {
-    pub fn file_size(&self) -> usize {
+    pub fn _file_size(&self) -> usize {
         let header_length = self.files.len() * 4;
         let files_length = self.files.iter().fold(0, |pv, cv| pv + cv.len());
 

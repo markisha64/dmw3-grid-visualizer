@@ -24,6 +24,12 @@ struct Args {
     tmpk: PathBuf,
 }
 
+fn to_u16s(data: &Vec<u8>) -> Vec<u16> {
+    data.chunks_exact(2)
+        .map(|x| u16::from_le_bytes([x[0], x[1]]))
+        .collect()
+}
+
 fn to_color(value: u8) -> image::Rgb<u8> {
     let rv = value as u64 + 42;
     let gv = value as u64 + 69;
@@ -34,67 +40,6 @@ fn to_color(value: u8) -> image::Rgb<u8> {
     let blue = ((bv * bv * bv * bv) % 255) as u8;
 
     image::Rgb([red, green, blue])
-}
-
-fn get_grid_value(grid_s: &grid::Grid, x: u32, y: u32) -> u8 {
-    let mut grid_part = grid_s.info.c
-        [((y >> 7) * (grid_s.info.width) as u32) as usize + (x >> 7) as usize]
-        as usize
-        * 4;
-
-    if (y & 64) != 0 {
-        grid_part += 2;
-    }
-
-    if (x & 64) != 0 {
-        grid_part += 1;
-    }
-
-    let mut grid_part_1 = grid_s.header1[grid_part as usize] as usize * 4;
-
-    if (y & 32) != 0 {
-        grid_part_1 += 2;
-    }
-
-    if (x & 32) == 0 {
-        grid_part_1 = grid_part_1 << 1;
-    } else {
-        grid_part_1 = grid_part_1 * 2 + 2;
-    }
-
-    let mut grid_part_2 = u16::from_le_bytes([
-        grid_s.header2[grid_part_1 as usize],
-        grid_s.header2[(grid_part_1 + 1) as usize],
-    ]) as usize
-        * 4;
-
-    if (y & 16) != 0 {
-        grid_part_2 = grid_part_2 + 2;
-    }
-
-    if (x & 16) == 0 {
-        grid_part_2 = grid_part_2 << 1;
-    } else {
-        grid_part_2 = grid_part_2 * 2 + 2;
-    }
-
-    let mut fpart = u16::from_le_bytes([
-        grid_s.header3[grid_part_2 as usize],
-        grid_s.header3[(grid_part_2 + 1) as usize],
-    ]) as usize
-        * 4;
-
-    if (y & 8) != 0 {
-        fpart = fpart + 2;
-    }
-
-    if (x & 8) == 0 {
-        fpart = fpart << 1;
-    } else {
-        fpart = fpart * 2 + 2;
-    }
-
-    grid_s.blocks[grid_s.indices[fpart as usize] as usize][(y & 7) as usize][(x & 7) as usize]
 }
 
 fn display_grid(grids: Vec<grid::Grid>, og: &DynamicImage, filename: &str) {
@@ -110,7 +55,7 @@ fn display_grid(grids: Vec<grid::Grid>, og: &DynamicImage, filename: &str) {
 
         for i in 0..full_width {
             for j in 0..full_height {
-                let cv = get_grid_value(grid_s, i, j);
+                let cv = grid::get_grid_value(grid_s, i, j);
 
                 if cv > 0 {
                     let current_pixel = new_image.get_pixel(i, j);
@@ -258,10 +203,10 @@ fn handle_single(args: &Args) {
         let grid_s = grid::Grid {
             offsets: grid_header,
             info: grid_info,
-            header1: grid_raw.files[1].clone(),
-            header2: grid_raw.files[2].clone(),
-            header3: grid_raw.files[3].clone(),
-            indices: grid_raw.files[4].clone(),
+            segment1: grid_raw.files[1].clone(),
+            segment2: to_u16s(&grid_raw.files[2]),
+            segment3: to_u16s(&grid_raw.files[3]),
+            indices: to_u16s(&grid_raw.files[4]),
             blocks,
         };
 
