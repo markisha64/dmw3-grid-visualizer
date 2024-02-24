@@ -30,7 +30,7 @@ fn to_u16s(data: &Vec<u8>) -> Vec<u16> {
         .collect()
 }
 
-fn to_color(value: u8) -> image::Rgb<u8> {
+fn to_color(value: u8) -> image::Rgba<u8> {
     let rv = value as u64 + 42;
     let gv = value as u64 + 69;
     let bv = value as u64 + 20;
@@ -39,7 +39,48 @@ fn to_color(value: u8) -> image::Rgb<u8> {
     let green = ((gv * gv * gv) % 255) as u8;
     let blue = ((bv * bv * bv * bv) % 255) as u8;
 
-    image::Rgb([red, green, blue])
+    image::Rgba([red, green, blue, ALPHA as u8])
+}
+
+fn blend_pixels(pixel1: &image::Rgba<u8>, pixel2: &image::Rgba<u8>) -> image::Rgba<u8> {
+    let result_alpha = ALPHA + ((255 - ALPHA) * pixel2[3] as u32) / 255;
+
+    let r_result = min(
+        max(
+            (pixel1[0] as u32 * pixel1[3] as u32
+                + ((pixel2[3] as u32) * (pixel2[0] as u32) * (255 - pixel1[3] as u32)) / 255)
+                / result_alpha,
+            0,
+        ),
+        255,
+    );
+
+    let g_result = min(
+        max(
+            (pixel1[1] as u32 * pixel1[3] as u32
+                + ((pixel2[3] as u32) * (pixel2[1] as u32) * (255 - pixel1[3] as u32)) / 255)
+                / result_alpha,
+            0,
+        ),
+        255,
+    );
+
+    let b_result = min(
+        max(
+            (pixel1[2] as u32 * pixel1[3] as u32
+                + ((pixel2[3] as u32) * (pixel2[2] as u32) * (255 - pixel1[3] as u32)) / 255)
+                / result_alpha,
+            0,
+        ),
+        255,
+    );
+
+    image::Rgba([
+        r_result as u8,
+        g_result as u8,
+        b_result as u8,
+        result_alpha as u8,
+    ])
 }
 
 fn display_grid(grids: Vec<grid::Grid>, og: &DynamicImage, filename: &str) {
@@ -62,50 +103,7 @@ fn display_grid(grids: Vec<grid::Grid>, og: &DynamicImage, filename: &str) {
 
                     let color = to_color(cv);
 
-                    let result_alpha = ALPHA + ((255 - ALPHA) * current_pixel[3] as u32) / 255;
-
-                    let r_result = min(
-                        max(
-                            (color[0] as u32 * ALPHA
-                                + ((current_pixel[3] as u32)
-                                    * (current_pixel[0] as u32)
-                                    * (255 - ALPHA))
-                                    / 255)
-                                / result_alpha,
-                            0,
-                        ),
-                        255,
-                    );
-
-                    let g_result = min(
-                        max(
-                            (color[1] as u32 * ALPHA
-                                + ((current_pixel[3] as u32)
-                                    * (current_pixel[1] as u32)
-                                    * (255 - ALPHA))
-                                    / 255)
-                                / result_alpha,
-                            0,
-                        ),
-                        255,
-                    );
-
-                    let b_result = min(
-                        max(
-                            (color[2] as u32 * ALPHA
-                                + ((current_pixel[3] as u32)
-                                    * (current_pixel[2] as u32)
-                                    * (255 - ALPHA))
-                                    / 255)
-                                / result_alpha,
-                            0,
-                        ),
-                        255,
-                    );
-
-                    let new_pixel =
-                        image::Rgba::<u8>([r_result as u8, g_result as u8, b_result as u8, 255]);
-                    new_image.put_pixel(i, j, new_pixel);
+                    new_image.put_pixel(i, j, blend_pixels(&color, &current_pixel));
                 }
             }
         }
