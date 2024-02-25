@@ -4,7 +4,7 @@ use std::{
 };
 
 use clap::Parser;
-use image::{io::Reader as ImageReader, DynamicImage, GenericImage, GenericImageView};
+use image::{io::Reader as ImageReader, DynamicImage, GenericImage, GenericImageView, ImageBuffer};
 use std::fs;
 use std::thread;
 
@@ -18,6 +18,8 @@ const ALPHA: u32 = 128;
 struct Args {
     #[clap(long, default_value = "false")]
     folders: bool,
+    #[clap(long, default_value = "false")]
+    blocks: bool,
     #[clap(long, default_value = "1")]
     threads: usize,
     image: PathBuf,
@@ -83,7 +85,7 @@ fn blend_pixels(pixel1: &image::Rgba<u8>, pixel2: &image::Rgba<u8>) -> image::Rg
     ])
 }
 
-fn display_grid(grids: Vec<grid::Grid>, og: &DynamicImage, filename: &str) {
+fn display_grid(grids: Vec<grid::Grid>, og: &DynamicImage, filename: &str, blocks: bool) {
     fs::create_dir_all(format!("{TARGET}/{filename}")).unwrap();
 
     for i in 0..grids.len() {
@@ -105,6 +107,23 @@ fn display_grid(grids: Vec<grid::Grid>, og: &DynamicImage, filename: &str) {
 
                     new_image.put_pixel(i, j, blend_pixels(&color, &current_pixel));
                 }
+            }
+        }
+
+        if blocks {
+            for (j, block) in grid_s.blocks.iter().enumerate() {
+                let img = ImageBuffer::from_fn(8, 8, |x, y| {
+                    let cv = block[y as usize][x as usize];
+
+                    if cv > 0 {
+                        return to_color(cv);
+                    }
+
+                    image::Rgba([0, 0, 0, 0])
+                });
+
+                img.save(format!("{TARGET}/{filename}/block-{i}-{j}.png"))
+                    .unwrap();
             }
         }
 
@@ -133,51 +152,6 @@ fn handle_single(args: &Args) {
             continue;
         }
 
-        let offsets_raw = &grid_raw.files[0];
-
-        if offsets_raw.len() < 24 {
-            continue;
-        }
-
-        let grid_header = grid::GridOffsets {
-            info_offset: u32::from_le_bytes([
-                offsets_raw[0],
-                offsets_raw[1],
-                offsets_raw[2],
-                offsets_raw[3],
-            ]),
-            header1: u32::from_le_bytes([
-                offsets_raw[4],
-                offsets_raw[5],
-                offsets_raw[6],
-                offsets_raw[7],
-            ]),
-            header2: u32::from_le_bytes([
-                offsets_raw[8],
-                offsets_raw[9],
-                offsets_raw[10],
-                offsets_raw[11],
-            ]),
-            header3: u32::from_le_bytes([
-                offsets_raw[12],
-                offsets_raw[13],
-                offsets_raw[14],
-                offsets_raw[15],
-            ]),
-            indices: u32::from_le_bytes([
-                offsets_raw[16],
-                offsets_raw[17],
-                offsets_raw[18],
-                offsets_raw[19],
-            ]),
-            blocks_offset: u32::from_le_bytes([
-                offsets_raw[20],
-                offsets_raw[21],
-                offsets_raw[22],
-                offsets_raw[23],
-            ]),
-        };
-
         let mut blocks = Vec::new();
 
         let grid_info = grid::GridInfo {
@@ -199,7 +173,6 @@ fn handle_single(args: &Args) {
         }
 
         let grid_s = grid::Grid {
-            offsets: grid_header,
             info: grid_info,
             segment1: grid_raw.files[1].clone(),
             segment2: to_u16s(&grid_raw.files[2]),
@@ -217,6 +190,7 @@ fn handle_single(args: &Args) {
         grids,
         &img,
         args.image.file_stem().clone().unwrap().try_into().unwrap(),
+        args.blocks,
     )
 }
 
@@ -255,6 +229,7 @@ fn handle_folders(args: Args) {
                         image: entry.path(),
                         tmpk: path,
                         threads: 1,
+                        blocks: args.blocks,
                         folders: false,
                     });
                 }

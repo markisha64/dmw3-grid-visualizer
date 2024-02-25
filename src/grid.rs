@@ -14,7 +14,6 @@ pub struct GridOffsets {
 }
 
 pub struct Grid {
-    pub offsets: GridOffsets,
     pub info: GridInfo,
     pub segment1: Vec<u8>,
     pub segment2: Vec<u16>,
